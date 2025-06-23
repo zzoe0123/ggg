@@ -1,0 +1,610 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="pageTitle">咖啡任務小遊戲</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media (min-width: 430px) {
+      .container {
+        max-width: 430px;
+      }
+    }
+    .coffee-icon {
+      width: 40px;
+      height: 40px;
+    }
+    .btn-primary {
+      background-color: #00704A;
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: #00855A;
+    }
+    .progress-bar {
+      background-color: #00704A;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans">
+  <div class="container mx-auto p-4 min-h-screen">
+    <!-- Homepage -->
+    <div id="homePage" class="space-y-4">
+      <!-- Header -->
+      <header class="flex justify-between items-center bg-white p-4 rounded-lg shadow mb-4">
+        <h1 id="appTitle" class="text-xl font-bold text-green-800">咖啡任務</h1>
+        <div class="flex items-center space-x-2">
+          <div class="text-md font-semibold text-green-700">
+            <span id="pointsLabel">點數</span>: <span id="points">0</span>
+          </div>
+          <div id="rankContainer" class="flex items-center space-x-2 hidden">
+            <span id="rank" class="bg-green-200 text-green-800 px-2 py-1 rounded text-sm"></span>
+          </div>
+          <button id="languageBtn" class="btn-primary px-2 py-1 rounded-lg text-xs">語言切換</button>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="space-y-4">
+        <!-- Daily Sign-in Section -->
+        <section class="bg-white p-4 rounded-lg shadow">
+          <h2 id="dailySignInTitle" class="text-lg font-semibold text-green-800 mb-3">每日簽到</h2>
+          <div class="flex justify-between">
+            <div class="text-center" id="day1">
+              <p class="text-xs text-green-600">+2</p>
+              <img src="https://i.imgur.com/z90FjdA.png" alt="Coffee Cup" class="coffee-icon mx-auto">
+              <p id="day1Label" class="text-xs text-green-600">Day 1</p>
+            </div>
+            <div class="text-center" id="day2">
+              <p class="text-xs text-green-600">+2</p>
+              <img src="https://i.imgur.com/z90FjdA.png" alt="Coffee Cup" class="coffee-icon mx-auto">
+              <p id="day2Label" class="text-xs text-green-600">Day 2</p>
+            </div>
+            <div class="text-center" id="day3">
+              <p class="text-xs text-green-600">+2</p>
+              <img src="https://i.imgur.com/z90FjdA.png" alt="Coffee Cup" class="coffee-icon mx-auto">
+              <p id="day3Label" class="text-xs text-green-600">Day 3</p>
+            </div>
+            <div class="text-center" id="day4">
+              <p class="text-xs text-green-600">+2</p>
+              <img src="https://i.imgur.com/z90FjdA.png" alt="Coffee Cup" class="coffee-icon mx-auto">
+              <p id="day4Label" class="text-xs text-green-600">Day 4</p>
+            </div>
+            <div class="text-center" id="day5">
+              <p class="text-xs text-green-600">+5</p>
+              <img src="https://i.imgur.com/z90FjdA.png" alt="Coffee Cup" class="coffee-icon mx-auto">
+              <p id="day5Label" class="text-xs text-green-600">Day 5</p>
+            </div>
+          </div>
+          <button id="checkinBtn" class="mt-3 w-full btn-primary px-3 py-2 rounded-lg text-sm">簽到</button>
+        </section>
+
+        <!-- Task Section -->
+        <section class="bg-white p-4 rounded-lg shadow">
+          <h2 id="tasksTitle" class="text-lg font-semibold text-green-800 mb-3">任務清單</h2>
+          <div class="mb-4">
+            <p id="progressLabel" class="text-sm font-medium text-green-700 mb-1">總任務進度</p>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+              <div id="totalProgress" class="progress-bar h-2 rounded-full" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-green-600 mt-1"><span id="progressText">進度</span>: <span id="totalPercent">0%</span></p>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <p id="triviaTask" class="text-sm font-medium text-green-700">回答咖啡小知識</p>
+              <button onclick="showTriviaModal()" id="triviaBtn" class="btn-primary px-3 py-1 rounded-lg text-sm">開始</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <p id="spend300Task" class="text-sm font-medium text-green-700">消費滿300元</p>
+              <button onclick="completeTask('spend300')" id="spend300Btn" class="btn-primary px-3 py-1 rounded-lg text-sm">完成</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <p id="spend500Task" class="text-sm font-medium text-green-700">消費滿500元</p>
+              <button onclick="completeTask('spend500')" id="spend500Btn" class="btn-primary px-3 py-1 rounded-lg text-sm">完成</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <p id="inviteTask" class="text-sm font-medium text-green-700">邀請3位朋友</p>
+              <button onclick="completeTask('invite')" id="inviteBtn" class="btn-primary px-3 py-1 rounded-lg text-sm">完成</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Rewards Button -->
+        <button id="rewardsBtn" onclick="showRewardsPage()" class="w-full btn-primary px-3 py-2 rounded-lg text-sm">兌換獎勵</button>
+      </main>
+    </div>
+
+    <!-- Rewards Page -->
+    <div id="rewardsPage" class="space-y-4 hidden">
+      <!-- Header -->
+      <header class="flex justify-between items-center bg-white p-4 rounded-lg shadow mb-4">
+        <button onclick="showHomePage()" class="text-green-600 text-sm">← <span id="backLabel">返回</span></button>
+        <h1 id="rewardsTitle" class="text-xl font-bold text-green-800">兌換獎勵</h1>
+        <div class="text-md font-semibold text-green-700">
+          <span id="pointsLabelRewards">點數</span>: <span id="pointsRewards">0</span>
+        </div>
+      </header>
+
+      <!-- Rewards Content -->
+      <main class="space-y-4">
+        <section class="bg-white p-4 rounded-lg shadow">
+          <h2 id="rewardsSectionTitle" class="text-lg font-semibold text-green-800 mb-3">可兌換商品</h2>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <p id="mediumCoffee" class="text-sm font-medium text-green-700">中杯咖啡 (5 點)</p>
+              <button onclick="redeemReward('mediumCoffee', 5)" class="btn-primary px-3 py-1 rounded-lg text-sm">兌換</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <p id="mug" class="text-sm font-medium text-green-700">限量馬克杯 (10 點)</p>
+              <button onclick="redeemReward('mug', 10)" class="btn-primary px-3 py-1 rounded-lg text-sm">兌換</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <p id="upgrade" class="text-sm font-medium text-green-700">中杯升級大杯 (5 點)</p>
+              <button onclick="redeemReward('upgrade', 5)" class="btn-primary px-3 py-1 rounded-lg text-sm">兌換</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <p id="bread" class="text-sm font-medium text-green-700">手工麵包 (8 點)</p>
+              <button onclick="redeemReward('bread', 8)" class="btn-primary px-3 py-1 rounded-lg text-sm">兌換</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Sign-in Modal -->
+    <div id="checkinModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full">
+        <h3 id="checkinModalMessage" class="text-md font-semibold text-green-800"></h3>
+        <button onclick="closeCheckinModal()" class="mt-3 w-full btn-primary px-3 py-1 rounded-lg text-sm">關閉</button>
+      </div>
+    </div>
+
+    <!-- Trivia Modal -->
+    <div id="triviaModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full">
+        <h3 id="triviaTitle" class="text-md font-semibold text-green-800 mb-3">咖啡小知識</h3>
+        <p id="triviaQuestion" class="text-sm mb-2">咖啡豆是因為哪個動物吃了晚上睡不著而發現的?</p>
+        <div class="space-y-2">
+          <button onclick="answerTrivia('a')" class="w-full bg-gray-200 text-green-800 px-3 py-1 rounded-lg hover:bg-gray-300 text-sm">a) <span id="optionA">驢子</span></button>
+          <button onclick="answerTrivia('b')" class="w-full bg-gray-200 text-green-800 px-3 py-1 rounded-lg hover:bg-gray-300 text-sm">b) <span id="optionB">山羊</span></button>
+          <button onclick="answerTrivia('c')" class="w-full bg-gray-200 text-green-800 px-3 py-1 rounded-lg hover:bg-gray-300 text-sm">c) <span id="optionC">綿羊</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Completion Modal -->
+    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full">
+        <h3 id="taskModalMessage" class="text-md font-semibold text-green-800">恭喜完成任務，獲得10點</h3>
+        <button onclick="closeTaskModal()" class="mt-3 w-full btn-primary px-3 py-1 rounded-lg text-sm">關閉</button>
+      </div>
+    </div>
+
+    <!-- Trivia Result Modal -->
+    <div id="triviaResultModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full">
+        <h3 id="triviaResultTitle" class="text-md font-semibold text-green-800"></h3>
+        <p id="triviaResultMessage" class="mt-2 text-sm text-green-700"></p>
+        <button onclick="closeTriviaResultModal()" class="mt-3 w-full btn-primary px-3 py-1 rounded-lg text-sm">關閉</button>
+      </div>
+    </div>
+
+    <!-- Rank Up Modal -->
+    <div id="rankUpModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full text-center">
+        <h3 id="rankUpModalMessage" class="text-md font-semibold text-green-800 mb-3"></h3>
+        <img id="rankUpModalImage" src="" alt="Rank Up" class="w-16 h-16 mx-auto mb-3">
+        <button onclick="closeRankUpModal()" class="mt-3 w-full btn-primary px-3 py-1 rounded-lg text-sm">關閉</button>
+      </div>
+    </div>
+
+    <!-- Reward Success Modal -->
+    <div id="rewardSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full text-center">
+        <h3 id="rewardSuccessTitle" class="text-md font-semibold text-green-800 mb-3">恭喜成功兌換</h3>
+        <img src="https://i.imgur.com/xAbGAlx.png" alt="Success" class="w-16 h-16 mx-auto mb-3">
+        <p id="rewardSuccessMessage" class="text-sm text-green-700"></p>
+        <button onclick="closeRewardSuccessModal()" class="mt-3 w-full btn-primary px-3 py-1 rounded-lg text-sm">關閉</button>
+      </div>
+    </div>
+
+    <!-- Insufficient Points Modal -->
+    <div id="insufficientPointsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-4 rounded-lg shadow-lg max-w-xs w-full">
+        <h3 id="insufficientPointsTitle" class="text-md font-semibold text-green-800">點數不足</h3>
+        <p id="insufficientPointsMessage" class="mt-2 text-sm text-green-700">請繼續完成任務以獲得更多點數！</p>
+        <button onclick="closeInsufficientPointsModal()" class="mt-3 w-full btn-primary px-3 py-1 rounded-lg text-sm">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let points = 0;
+    let checkinDays = 0;
+    let tasksCompleted = 0;
+    let currentRank = '咖啡新芽';
+    let currentLanguage = 'zh-TW';
+    let tasks = {
+      trivia: { completed: false },
+      spend300: { completed: false },
+      spend500: { completed: false },
+      invite: { completed: false }
+    };
+
+    const translations = {
+      'zh-TW': {
+        pageTitle: '咖啡任務小遊戲',
+        appTitle: '咖啡任務',
+        pointsLabel: '點數',
+        languageBtn: '語言切換',
+        dailySignInTitle: '每日簽到',
+        day1Label: 'Day 1',
+        day2Label: 'Day 2',
+        day3Label: 'Day 3',
+        day4Label: 'Day 4',
+        day5Label: 'Day 5',
+        checkinBtn: '簽到',
+        tasksTitle: '任務清單',
+        progressLabel: '總任務進度',
+        progressText: '進度',
+        triviaTask: '回答咖啡小知識',
+        spend300Task: '消費滿300元',
+        spend500Task: '消費滿500元',
+        inviteTask: '邀請3位朋友',
+        rewardsBtn: '兌換獎勵',
+        backLabel: '返回',
+        rewardsTitle: '兌換獎勵',
+        pointsLabelRewards: '點數',
+        rewardsSectionTitle: '可兌換商品',
+        mediumCoffee: '中杯咖啡 (5 點)',
+        mug: '限量馬克杯 (10 點)',
+        upgrade: '中杯升級大杯 (5 點)',
+        bread: '手工麵包 (8 點)',
+        checkinModalDay: 'Day {day} 恭喜獲得 2 點',
+        checkinModalDay5: '完成簽到! 獲得 5 點',
+        triviaTitle: '咖啡小知識',
+        triviaQuestion: '咖啡豆是因為哪個動物吃了晚上睡不著而發現的?',
+        optionA: '驢子',
+        optionB: '山羊',
+        optionC: '綿羊',
+        triviaCorrect: '恭喜答對!',
+        triviaCorrectMessage: '你成功回答咖啡小知識！',
+        triviaIncorrect: '答錯囉!',
+        triviaIncorrectMessage: '再想想！',
+        taskModalMessage: '恭喜完成任務，獲得10點',
+        rankUpApprentice: '恭喜晉升成為 咖啡學徒',
+        rankUpMaster: '恭喜晉升成為 咖啡達人',
+        rankSeedling: '咖啡新芽 🌱',
+        rankApprentice: '咖啡學徒 📖',
+        rankMaster: '咖啡達人 ⭐',
+        rewardSuccessTitle: '恭喜成功兌換',
+        rewardSuccessMessage: '你已兌換 {item}！',
+        insufficientPointsTitle: '點數不足',
+        insufficientPointsMessage: '請繼續完成任務以獲得更多點數！',
+        close: '關閉'
+      },
+      'en': {
+        pageTitle: 'Coffee Quest Game',
+        appTitle: 'Coffee Quest',
+        pointsLabel: 'Points',
+        languageBtn: 'Switch Language',
+        dailySignInTitle: 'Daily Sign-In',
+        day1Label: 'Day 1',
+        day2Label: 'Day 2',
+        day3Label: 'Day 3',
+        day4Label: 'Day 4',
+        day5Label: 'Day 5',
+        checkinBtn: 'Sign In',
+        tasksTitle: 'Task List',
+        progressLabel: 'Total Task Progress',
+        progressText: 'Progress',
+        triviaTask: 'Answer Coffee Trivia',
+        spend300Task: 'Spend $300',
+        spend500Task: 'Spend $500',
+        inviteTask: 'Invite 3 Friends',
+        rewardsBtn: 'Redeem Rewards',
+        backLabel: 'Back',
+        rewardsTitle: 'Redeem Rewards',
+        pointsLabelRewards: 'Points',
+        rewardsSectionTitle: 'Available Rewards',
+        mediumCoffee: 'Medium Coffee (5 Points)',
+        mug: 'Limited Mug (10 Points)',
+        upgrade: 'Medium to Large Upgrade (5 Points)',
+        bread: 'Artisan Bread (8 Points)',
+        checkinModalDay: 'Day {day} Congratulations, earned 2 points!',
+        checkinModalDay5: 'Sign-in completed! Earned 5 points!',
+        triviaTitle: 'Coffee Trivia',
+        triviaQuestion: 'Which animal discovered coffee beans by staying awake after eating them?',
+        optionA: 'Donkey',
+        optionB: 'Goat',
+        optionC: 'Sheep',
+        triviaCorrect: 'Correct!',
+        triviaCorrectMessage: 'You successfully answered the coffee trivia!',
+        triviaIncorrect: 'Incorrect!',
+        triviaIncorrectMessage: 'Try again!',
+        taskModalMessage: 'Congratulations, completed all tasks and earned 10 points!',
+        rankUpApprentice: 'Congratulations, promoted to Coffee Apprentice!',
+        rankUpMaster: 'Congratulations, promoted to Coffee Master!',
+        rankSeedling: 'Coffee Seedling 🌱',
+        rankApprentice: 'Coffee Apprentice 📖',
+        rankMaster: 'Coffee Master ⭐',
+        rewardSuccessTitle: 'Successfully Redeemed!',
+        rewardSuccessMessage: 'You have redeemed {item}!',
+        insufficientPointsTitle: 'Insufficient Points',
+        insufficientPointsMessage: 'Please complete more tasks to earn additional points!',
+        close: 'Close'
+      }
+    };
+
+    // Language Toggle
+    document.getElementById('languageBtn').addEventListener('click', () => {
+      currentLanguage = currentLanguage === 'zh-TW' ? 'en' : 'zh-TW';
+      updateLanguage();
+    });
+
+    // Update Language
+    function updateLanguage() {
+      const t = translations[currentLanguage];
+      document.getElementById('pageTitle').textContent = t.pageTitle;
+      document.getElementById('appTitle').textContent = t.appTitle;
+      document.getElementById('pointsLabel').textContent = t.pointsLabel;
+      document.getElementById('languageBtn').textContent = t.languageBtn;
+      document.getElementById('dailySignInTitle').textContent = t.dailySignInTitle;
+      document.getElementById('day1Label').textContent = t.day1Label;
+      document.getElementById('day2Label').textContent = t.day2Label;
+      document.getElementById('day3Label').textContent = t.day3Label;
+      document.getElementById('day4Label').textContent = t.day4Label;
+      document.getElementById('day5Label').textContent = t.day5Label;
+      document.getElementById('checkinBtn').textContent = t.checkinBtn;
+      document.getElementById('tasksTitle').textContent = t.tasksTitle;
+      document.getElementById('progressLabel').textContent = t.progressLabel;
+      document.getElementById('progressText').textContent = t.progressText;
+      document.getElementById('triviaTask').textContent = t.triviaTask;
+      document.getElementById('spend300Task').textContent = t.spend300Task;
+      document.getElementById('spend500Task').textContent = t.spend500Task;
+      document.getElementById('inviteTask').textContent = t.inviteTask;
+      document.getElementById('rewardsBtn').textContent = t.rewardsBtn;
+      document.getElementById('backLabel').textContent = t.backLabel;
+      document.getElementById('rewardsTitle').textContent = t.rewardsTitle;
+      document.getElementById('pointsLabelRewards').textContent = t.pointsLabelRewards;
+      document.getElementById('rewardsSectionTitle').textContent = t.rewardsSectionTitle;
+      document.getElementById('mediumCoffee').textContent = t.mediumCoffee;
+      document.getElementById('mug').textContent = t.mug;
+      document.getElementById('upgrade').textContent = t.upgrade;
+      document.getElementById('bread').textContent = t.bread;
+      document.getElementById('triviaTitle').textContent = t.triviaTitle;
+      document.getElementById('triviaQuestion').textContent = t.triviaQuestion;
+      document.getElementById('optionA').textContent = t.optionA;
+      document.getElementById('optionB').textContent = t.optionB;
+      document.getElementById('optionC').textContent = t.optionC;
+      document.getElementById('taskModalMessage').textContent = t.taskModalMessage;
+      document.getElementById('rewardSuccessTitle').textContent = t.rewardSuccessTitle;
+      document.getElementById('insufficientPointsTitle').textContent = t.insufficientPointsTitle;
+      document.getElementById('insufficientPointsMessage').textContent = t.insufficientPointsMessage;
+      document.querySelectorAll('[data-close]').forEach(btn => btn.textContent = t.close);
+      const rankElement = document.getElementById('rank');
+      if (rankElement.textContent.includes('咖啡新芽') || rankElement.textContent.includes('Coffee Seedling')) {
+        rankElement.textContent = t.rankSeedling;
+      } else if (rankElement.textContent.includes('咖啡學徒') || rankElement.textContent.includes('Coffee Apprentice')) {
+        rankElement.textContent = t.rankApprentice;
+      } else if (rankElement.textContent.includes('咖啡達人') || rankElement.textContent.includes('Coffee Master')) {
+        rankElement.textContent = t.rankMaster;
+      }
+    }
+
+    // Daily Sign-in Logic
+    document.getElementById('checkinBtn').addEventListener('click', () => {
+      if (checkinDays < 5) {
+        checkinDays++;
+        const dayElement = document.getElementById(`day${checkinDays}`);
+        dayElement.querySelector('img').src = 'https://i.imgur.com/CqYkIzl.png';
+        const modalMessage = document.getElementById('checkinModalMessage');
+        if (checkinDays === 5) {
+          points += 5;
+          modalMessage.textContent = translations[currentLanguage].checkinModalDay5;
+        } else {
+          points += 2;
+          modalMessage.textContent = translations[currentLanguage].checkinModalDay.replace('{day}', checkinDays);
+        }
+        updatePoints();
+        document.getElementById('checkinModal').classList.remove('hidden');
+        updateRank(false);
+      }
+    });
+
+    // Show Trivia Modal
+    function showTriviaModal() {
+      if (!tasks.trivia.completed) {
+        document.getElementById('triviaModal').classList.remove('hidden');
+      }
+    }
+
+    // Answer Trivia
+    function answerTrivia(answer) {
+      document.getElementById('triviaModal').classList.add('hidden');
+      const resultModal = document.getElementById('triviaResultModal');
+      const resultTitle = document.getElementById('triviaResultTitle');
+      const resultMessage = document.getElementById('triviaResultMessage');
+      if (answer === 'b') {
+        resultTitle.textContent = translations[currentLanguage].triviaCorrect;
+        resultMessage.textContent = translations[currentLanguage].triviaCorrectMessage;
+        if (!tasks.trivia.completed) {
+          tasks.trivia.completed = true;
+          tasksCompleted++;
+          updateProgress();
+          updateRank(true);
+          document.getElementById('triviaBtn').classList.add('bg-gray-400', 'cursor-not-allowed');
+          document.getElementById('triviaBtn').disabled = true;
+          if (checkAllTasksCompleted()) awardTaskPoints();
+        }
+      } else {
+        resultTitle.textContent = translations[currentLanguage].triviaIncorrect;
+        resultMessage.textContent = translations[currentLanguage].triviaIncorrectMessage;
+      }
+      resultModal.classList.remove('hidden');
+    }
+
+    // Complete Task
+    function completeTask(task) {
+      if (!tasks[task].completed) {
+        tasks[task].completed = true;
+        tasksCompleted++;
+        updateProgress();
+        updateRank(true);
+        document.getElementById(`${task}Btn`).classList.add('bg-gray-400', 'cursor-not-allowed');
+        document.getElementById(`${task}Btn`).disabled = true;
+        if (checkAllTasksCompleted()) awardTaskPoints();
+      }
+    }
+
+    // Check if All Tasks are Completed
+    function checkAllTasksCompleted() {
+      return tasksCompleted === 4;
+    }
+
+    // Award Points for All Tasks
+    function awardTaskPoints() {
+      points += 10;
+      updatePoints();
+      document.getElementById('taskModal').classList.remove('hidden');
+    }
+
+    // Redeem Reward
+    function redeemReward(item, cost) {
+      if (points >= cost) {
+        points -= cost;
+        updatePoints();
+        const itemName = currentLanguage === 'zh-TW' ?
+          (item === 'mediumCoffee' ? '中杯咖啡' : item === 'mug' ? '限量馬克杯' : item === 'upgrade' ? '中杯升級大杯' : '手工麵包') :
+          (item === 'mediumCoffee' ? 'Medium Coffee' : item === 'mug' ? 'Limited Mug' : item === 'upgrade' ? 'Medium to Large Upgrade' : 'Artisan Bread');
+        document.getElementById('rewardSuccessMessage').textContent = translations[currentLanguage].rewardSuccessMessage.replace('{item}', itemName);
+        document.getElementById('rewardSuccessModal').classList.remove('hidden');
+      } else {
+        document.getElementById('insufficientPointsModal').classList.remove('hidden');
+      }
+    }
+
+    // Update Points
+    function updatePoints() {
+      document.getElementById('points').textContent = points;
+      document.getElementById('pointsRewards').textContent = points;
+    }
+
+    // Update Progress
+    function updateProgress() {
+      const progress = (tasksCompleted / 4) * 100;
+      document.getElementById('totalProgress').style.width = `${progress}%`;
+      document.getElementById('totalPercent').textContent = `${progress}%`;
+    }
+
+    // Update Rank
+    function updateRank(showModal) {
+      const rankElement = document.getElementById('rank');
+      const rankContainer = document.getElementById('rankContainer');
+      let newRank = currentRank;
+      if (tasksCompleted >= 4) {
+        newRank = translations[currentLanguage].rankMaster;
+      } else if (tasksCompleted >= 2) {
+        newRank = translations[currentLanguage].rankApprentice;
+      } else {
+        newRank = translations[currentLanguage].rankSeedling;
+      }
+      if (tasksCompleted > 0 || checkinDays > 0) {
+        rankElement.textContent = newRank;
+        rankContainer.classList.remove('hidden');
+        rankElement.classList.remove('bg-green-200', 'text-green-800');
+        rankElement.classList.add('bg-[#00704A]', 'text-white');
+        if (newRank !== currentRank && showModal && newRank !== translations[currentLanguage].rankSeedling) {
+          currentRank = newRank;
+          const rankImage = newRank === translations[currentLanguage].rankApprentice ? 'https://i.imgur.com/yEhebb0.png' : 'https://i.imgur.com/wSLNq0p.png';
+          document.getElementById('rankUpModalImage').src = rankImage;
+          showRankUpModal(translations[currentLanguage][newRank === translations[currentLanguage].rankApprentice ? 'rankUpApprentice' : 'rankUpMaster']);
+        } else {
+          currentRank = newRank;
+        }
+      }
+    }
+
+    // Page Navigation
+    function showRewardsPage() {
+      document.getElementById('homePage').classList.add('hidden');
+      document.getElementById('rewardsPage').classList.remove('hidden');
+    }
+
+    function showHomePage() {
+      document.getElementById('rewardsPage').classList.add('hidden');
+      document.getElementById('homePage').classList.remove('hidden');
+    }
+
+    // Modal Functions
+    function closeCheckinModal() {
+      document.getElementById('checkinModal').classList.add('hidden');
+    }
+
+    function closeTriviaResultModal() {
+      document.getElementById('triviaResultModal').classList.add('hidden');
+    }
+
+    function closeTaskModal() {
+      document.getElementById('taskModal').classList.add('hidden');
+    }
+
+    function closeRankUpModal() {
+      document.getElementById('rankUpModal').classList.add('hidden');
+    }
+
+    function closeRewardSuccessModal() {
+      document.getElementById('rewardSuccessModal').classList.add('hidden');
+    }
+
+    function closeInsufficientPointsModal() {
+      document.getElementById('insufficientPointsModal').classList.add('hidden');
+    }
+
+    function showRankUpModal(message) {
+      document.getElementById('rankUpModalMessage').textContent = message;
+      document.getElementById('rankUpModal').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
